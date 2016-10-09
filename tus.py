@@ -71,8 +71,7 @@ def _cmd_resume():
         args.file,
         args.file_endpoint,
         chunk_size=args.chunk_size,
-        authorization=args.authorization,
-    )
+        authorization=args.authorization)
 
 
 def upload(file_obj,
@@ -90,10 +89,7 @@ def upload(file_obj,
         authorization=authorization,
         metadata=metadata)
     resume(
-            file_obj,
-            location,
-            chunk_size=chunk_size,
-            authorization=authorization)
+        file_obj, location, chunk_size=chunk_size, authorization=authorization)
 
 
 def _get_file_size(f):
@@ -132,31 +128,28 @@ def _create_file(tus_endpoint,
     return location
 
 
-def resume(
-        file_obj,
-        file_endpoint,
-        chunk_size=DEFAULT_CHUNK_SIZE,
-        authorization=None):
+def resume(file_obj,
+           file_endpoint,
+           chunk_size=DEFAULT_CHUNK_SIZE,
+           authorization=None):
     file_size = _get_file_size(file_obj)
     offset = _get_offset(file_endpoint, authorization=authorization)
     while offset < file_size:
         file_obj.seek(offset)
         data = file_obj.read(chunk_size)
-        offset = _upload_chunk(data, offset, file_endpoint,
-                               authorization=authorization)
+        offset = _upload_chunk(
+            data, offset, file_endpoint, authorization=authorization)
 
 
 def _get_offset(file_endpoint, authorization=None):
     logger.info("Getting offset")
 
-    headers = {
-        "Tus-Resumable": TUS_VERSION,
-    }
+    headers = {"Tus-Resumable": TUS_VERSION}
 
     if authorization:
         headers["Authorization"] = authorization
 
-    response = requests.head(file_endpoint,  headers=headers)
+    response = requests.head(file_endpoint, headers=headers)
     response.raise_for_status()
 
     offset = _extract_offset(response)
