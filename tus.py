@@ -1,7 +1,7 @@
 import os
-import argparse
+import base64
 import logging
-from base64 import b64encode
+import argparse
 
 import requests
 
@@ -41,7 +41,15 @@ def _cmd_upload():
     parser = _create_parser()
     parser.add_argument('tus_endpoint')
     parser.add_argument('--file_name')
+    parser.add_argument(
+        '--metadata',
+        action='append',
+        help="A single key/value pair to be sent with the upload request."
+        "Can be specified multiple times to send more than one key/value pair."
+        "Key and value must be separated with space.")
     args = parser.parse_args()
+
+    metadata = dict([x.split() for x in args.metadata])
 
     upload(
         args.file,
@@ -49,7 +57,7 @@ def _cmd_upload():
         chunk_size=args.chunk_size,
         file_name=args.file_name,
         authorization=args.authorization,
-    )
+        metadata=metadata)
 
 
 def _cmd_resume():
@@ -67,19 +75,20 @@ def _cmd_resume():
     )
 
 
-def upload(
-        file_obj,
-        tus_endpoint,
-        chunk_size=DEFAULT_CHUNK_SIZE,
-        file_name=None,
-        authorization=None):
+def upload(file_obj,
+           tus_endpoint,
+           chunk_size=DEFAULT_CHUNK_SIZE,
+           file_name=None,
+           authorization=None,
+           metadata=None):
     file_name = os.path.basename(file_obj.name)
     file_size = _get_file_size(file_obj)
     location = _create_file(
-            tus_endpoint,
-            file_name,
-            file_size,
-            authorization=authorization)
+        tus_endpoint,
+        file_name,
+        file_size,
+        authorization=authorization,
+        metadata=metadata)
     resume(
             file_obj,
             location,
@@ -95,18 +104,24 @@ def _get_file_size(f):
     return size
 
 
-# TODO file_name alma, metadata al
-def _create_file(tus_endpoint, file_name, file_size, authorization=None):
+def _create_file(tus_endpoint,
+                 file_name,
+                 file_size,
+                 authorization=None,
+                 metadata=None):
     logger.info("Creating file endpoint")
 
     headers = {
         "Tus-Resumable": TUS_VERSION,
         "Upload-Length": str(file_size),
-        "Upload-Metadata": "name %s" % b64encode(file_name),
     }
 
     if authorization:
         headers["Authorization"] = authorization
+
+    if metadata:
+        l = [k + ' ' + base64.b64encode(v) for k, v in metadata.items()]
+        headers["Upload-Metadata"] = ','.join(l)
 
     response = requests.post(tus_endpoint, headers=headers)
     if response.status_code != 201:
