@@ -11,6 +11,7 @@ TUS_VERSION = '1.0.0'
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+logger.addHandler(logging.NullHandler())
 
 
 class TusError(Exception):
