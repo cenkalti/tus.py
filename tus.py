@@ -131,7 +131,7 @@ def _create_file(tus_endpoint,
         raise TusError("Create failed: %s" % response)
 
     location = response.headers["Location"]
-    logger.info("Location: %s", location)
+    logger.info("Created: %s", location)
     return location
 
 
@@ -160,12 +160,12 @@ def _get_offset(file_endpoint, extra_headers=None):
     response.raise_for_status()
 
     offset = _extract_offset(response)
-    logger.info("Offset: %s", offset)
+    logger.info("offset=%i", offset)
     return offset
 
 
 def _upload_chunk(data, offset, file_endpoint, extra_headers=None):
-    logger.info("Uploading chunk")
+    logger.info("Uploading chunk, offset=%i", offset)
 
     headers = {
         'Content-Type': 'application/offset+octet-stream',
@@ -181,7 +181,6 @@ def _upload_chunk(data, offset, file_endpoint, extra_headers=None):
         raise TusError("Upload chunk failed: %s" % response)
 
     offset = _extract_offset(response)
-    logger.info("Offset: %s", offset)
     return offset
 
 
