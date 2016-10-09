@@ -165,7 +165,7 @@ def _get_offset(file_endpoint, extra_headers=None):
     response = requests.head(file_endpoint, headers=headers)
     response.raise_for_status()
 
-    offset = _extract_offset(response)
+    offset = int(response.headers["Upload-Offset"])
     logger.info("offset=%i", offset)
     return offset
 
@@ -186,9 +186,4 @@ def _upload_chunk(data, offset, file_endpoint, extra_headers=None):
     if response.status_code != 204:
         raise TusError("Upload chunk failed: %s" % response)
 
-    offset = _extract_offset(response)
-    return offset
-
-
-def _extract_offset(response):
     return int(response.headers["Upload-Offset"])
