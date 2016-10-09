@@ -30,8 +30,12 @@ def _create_parser():
     parser.add_argument('file', type=argparse.FileType('rb'))
     parser.add_argument('--chunk-size', default=DEFAULT_CHUNK_SIZE)
     parser.add_argument(
-        '--authorization',
-        help="Authorization header value to be sent with requests")
+        '--header',
+        action='append',
+        help="A single key/value pair"
+        " to be sent with all requests as HTTP header."
+        " Can be specified multiple times to send more then one header."
+        " Key and value must be separated with \":\".")
     return parser
 
 
@@ -44,19 +48,20 @@ def _cmd_upload():
     parser.add_argument(
         '--metadata',
         action='append',
-        help="A single key/value pair to be sent with the upload request."
-        "Can be specified multiple times to send more than one key/value pair."
-        "Key and value must be separated with space.")
+        help="A single key/value pair to be sent in Upload-Metadata header."
+        " Can be specified multiple times to send more than one pair."
+        " Key and value must be separated with space.")
     args = parser.parse_args()
 
-    metadata = dict([x.split() for x in args.metadata])
+    headers = dict([x.split(':') for x in args.header])
+    metadata = dict([x.split(' ') for x in args.metadata])
 
     upload(
         args.file,
         args.tus_endpoint,
         chunk_size=args.chunk_size,
         file_name=args.file_name,
-        authorization=args.authorization,
+        headers=headers,
         metadata=metadata)
 
 
@@ -67,18 +72,20 @@ def _cmd_resume():
     parser.add_argument('file_endpoint')
     args = parser.parse_args()
 
+    headers = dict([x.split(':') for x in args.header])
+
     resume(
         args.file,
         args.file_endpoint,
         chunk_size=args.chunk_size,
-        authorization=args.authorization)
+        headers=headers)
 
 
 def upload(file_obj,
            tus_endpoint,
            chunk_size=DEFAULT_CHUNK_SIZE,
            file_name=None,
-           authorization=None,
+           headers=None,
            metadata=None):
     file_name = os.path.basename(file_obj.name)
     file_size = _get_file_size(file_obj)
@@ -86,10 +93,10 @@ def upload(file_obj,
         tus_endpoint,
         file_name,
         file_size,
-        authorization=authorization,
+        extra_headers=headers,
         metadata=metadata)
     resume(
-        file_obj, location, chunk_size=chunk_size, authorization=authorization)
+        file_obj, location, chunk_size=chunk_size, headers=headers)
 
 
 def _get_file_size(f):
@@ -103,7 +110,7 @@ def _get_file_size(f):
 def _create_file(tus_endpoint,
                  file_name,
                  file_size,
-                 authorization=None,
+                 extra_headers=None,
                  metadata=None):
     logger.info("Creating file endpoint")
 
@@ -112,8 +119,8 @@ def _create_file(tus_endpoint,
         "Upload-Length": str(file_size),
     }
 
-    if authorization:
-        headers["Authorization"] = authorization
+    if extra_headers:
+        headers.update(extra_headers)
 
     if metadata:
         l = [k + ' ' + base64.b64encode(v) for k, v in metadata.items()]
@@ -131,23 +138,23 @@ def _create_file(tus_endpoint,
 def resume(file_obj,
            file_endpoint,
            chunk_size=DEFAULT_CHUNK_SIZE,
-           authorization=None):
+           headers=None):
     file_size = _get_file_size(file_obj)
-    offset = _get_offset(file_endpoint, authorization=authorization)
+    offset = _get_offset(file_endpoint, extra_headers=headers)
     while offset < file_size:
         file_obj.seek(offset)
         data = file_obj.read(chunk_size)
         offset = _upload_chunk(
-            data, offset, file_endpoint, authorization=authorization)
+            data, offset, file_endpoint, extra_headers=headers)
 
 
-def _get_offset(file_endpoint, authorization=None):
+def _get_offset(file_endpoint, extra_headers=None):
     logger.info("Getting offset")
 
     headers = {"Tus-Resumable": TUS_VERSION}
 
-    if authorization:
-        headers["Authorization"] = authorization
+    if extra_headers:
+        headers.update(extra_headers)
 
     response = requests.head(file_endpoint, headers=headers)
     response.raise_for_status()
@@ -157,7 +164,7 @@ def _get_offset(file_endpoint, authorization=None):
     return offset
 
 
-def _upload_chunk(data, offset, file_endpoint, authorization=None):
+def _upload_chunk(data, offset, file_endpoint, extra_headers=None):
     logger.info("Uploading chunk")
 
     headers = {
@@ -166,8 +173,8 @@ def _upload_chunk(data, offset, file_endpoint, authorization=None):
         'Tus-Resumable': TUS_VERSION,
     }
 
-    if authorization:
-        headers['Authorization'] = authorization
+    if extra_headers:
+        headers.update(extra_headers)
 
     response = requests.patch(file_endpoint, headers=headers, data=data)
     if response.status_code != 204:
