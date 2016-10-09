@@ -28,7 +28,7 @@ def _init():
 def _create_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('file', type=argparse.FileType('rb'))
-    parser.add_argument('--chunk-size', default=DEFAULT_CHUNK_SIZE)
+    parser.add_argument('--chunk-size', type=int, default=DEFAULT_CHUNK_SIZE)
     parser.add_argument(
         '--header',
         action='append',
