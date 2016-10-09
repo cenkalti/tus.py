@@ -96,7 +96,7 @@ def upload(file_obj,
         extra_headers=headers,
         metadata=metadata)
     resume(
-        file_obj, location, chunk_size=chunk_size, headers=headers)
+        file_obj, location, chunk_size=chunk_size, headers=headers, offset=0)
 
 
 def _get_file_size(f):
@@ -138,14 +138,20 @@ def _create_file(tus_endpoint,
 def resume(file_obj,
            file_endpoint,
            chunk_size=DEFAULT_CHUNK_SIZE,
-           headers=None):
+           headers=None,
+           offset=None):
+    if offset is None:
+        offset = _get_offset(file_endpoint, extra_headers=headers)
+
+    total_sent = 0
     file_size = _get_file_size(file_obj)
-    offset = _get_offset(file_endpoint, extra_headers=headers)
     while offset < file_size:
         file_obj.seek(offset)
         data = file_obj.read(chunk_size)
         offset = _upload_chunk(
             data, offset, file_endpoint, extra_headers=headers)
+        total_sent += len(data)
+        logger.info("Total bytes sent: %i", total_sent)
 
 
 def _get_offset(file_endpoint, extra_headers=None):
@@ -165,7 +171,7 @@ def _get_offset(file_endpoint, extra_headers=None):
 
 
 def _upload_chunk(data, offset, file_endpoint, extra_headers=None):
-    logger.info("Uploading chunk, offset=%i", offset)
+    logger.info("Uploading chunk from offset: %i", offset)
 
     headers = {
         'Content-Type': 'application/offset+octet-stream',
