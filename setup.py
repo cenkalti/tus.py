@@ -7,7 +7,7 @@ setup(
     version='1.0.0',
     author=u'Cenk Altı',
     author_email='cenkalti@gmail.com',
-    url='http://github.com/cenk/tus.py',
+    url='https://github.com/cenk/tus.py',
     py_modules=['tus'],
     include_package_data=True,
     zip_safe=True,
