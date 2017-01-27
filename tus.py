@@ -1,3 +1,4 @@
+from __future__ import print_function
 import os
 import base64
 import logging
@@ -26,62 +27,83 @@ def _init():
     logger.addHandler(h)
 
 
-def _create_parser():
+class DictAction(argparse.Action):
+    def __init__(self, option_strings, dest, **kwargs):
+        super(DictAction, self).__init__(
+            option_strings, dest, nargs=2, **kwargs)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        key, value = values[0], values[1]
+        d = getattr(namespace, self.dest)
+        if d is None:
+            setattr(namespace, self.dest, {})
+        d = getattr(namespace, self.dest)
+        d[key] = value
+
+
+def _create_parent_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('file', type=argparse.FileType('rb'))
     parser.add_argument('--chunk-size', type=int, default=DEFAULT_CHUNK_SIZE)
     parser.add_argument(
         '--header',
-        action='append',
-        default=[],
-        help="A single key/value pair"
-        " to be sent with all requests as HTTP header."
-        " Can be specified multiple times to send more then one header."
-        " Key and value must be separated with \":\".")
+        dest='headers',
+        action=DictAction,
+        help="A single key/value pair as 2 arguments"
+        " to be sent as HTTP header."
+        " Can be specified multiple times to send multiple headers.")
     return parser
 
 
 def _cmd_upload():
     _init()
 
-    parser = _create_parser()
+    parser = _create_parent_parser()
     parser.add_argument('tus_endpoint')
-    parser.add_argument('--file_name')
+    parser.add_argument(
+        '--file_name',
+        help="Override uploaded file name."
+        "Inferred from local file name if not specified.")
     parser.add_argument(
         '--metadata',
-        action='append',
-        default=[],
-        help="A single key/value pair to be sent in Upload-Metadata header."
-        " Can be specified multiple times to send more than one pair."
-        " Key and value must be separated with space.")
+        action=DictAction,
+        help="A single key/value pair as 2 arguments"
+        " to be sent in Upload-Metadata header."
+        " Can be specified multiple times to send more than one pair.")
     args = parser.parse_args()
 
-    headers = dict([map(lambda y: y.strip(), x.split(':')) for x in args.header])
-    metadata = dict([filter(None, x.split(' ')) for x in args.metadata])
+    file_name = args.file_name or os.path.basename(args.file.name)
+    file_size = _get_file_size(args.file)
 
-    upload(
-        args.file,
+    file_endpoint = create(
         args.tus_endpoint,
+        file_name,
+        file_size,
+        headers=args.headers,
+        metadata=args.metadata)
+
+    print(file_endpoint)
+
+    resume(
+        args.file,
+        file_endpoint,
         chunk_size=args.chunk_size,
-        file_name=args.file_name,
-        headers=headers,
-        metadata=metadata)
+        headers=args.headers,
+        offset=0)
 
 
 def _cmd_resume():
     _init()
 
-    parser = _create_parser()
+    parser = _create_parent_parser()
     parser.add_argument('file_endpoint')
     args = parser.parse_args()
-
-    headers = dict([map(lambda y: y.strip(), x.split(':')) for x in args.header])
 
     resume(
         args.file,
         args.file_endpoint,
         chunk_size=args.chunk_size,
-        headers=headers)
+        headers=args.headers)
 
 
 def upload(file_obj,
@@ -90,16 +112,23 @@ def upload(file_obj,
            file_name=None,
            headers=None,
            metadata=None):
-    file_name = os.path.basename(file_obj.name)
+
+    file_name = file_name or os.path.basename(file_obj.name)
     file_size = _get_file_size(file_obj)
-    location = _create_file(
+
+    file_endpoint = create(
         tus_endpoint,
         file_name,
         file_size,
-        extra_headers=headers,
+        headers=headers,
         metadata=metadata)
+
     resume(
-        file_obj, location, chunk_size=chunk_size, headers=headers, offset=0)
+        file_obj,
+        file_endpoint,
+        chunk_size=chunk_size,
+        headers=headers,
+        offset=0)
 
 
 def _get_file_size(f):
@@ -110,26 +139,25 @@ def _get_file_size(f):
     return size
 
 
-def _create_file(tus_endpoint,
-                 file_name,
-                 file_size,
-                 extra_headers=None,
-                 metadata=None):
+def create(tus_endpoint, file_name, file_size, headers=None, metadata=None):
     logger.info("Creating file endpoint")
 
-    headers = {
+    h = {
         "Tus-Resumable": TUS_VERSION,
         "Upload-Length": str(file_size),
     }
 
-    if extra_headers:
-        headers.update(extra_headers)
+    if headers:
+        h.update(headers)
 
     if metadata:
-        pairs = [k + ' ' + base64.b64encode(v.encode('utf-8')).decode() for k, v in metadata.items()]
-        headers["Upload-Metadata"] = ','.join(pairs)
+        pairs = [
+            k + ' ' + base64.b64encode(v.encode('utf-8')).decode()
+            for k, v in metadata.items()
+        ]
+        h["Upload-Metadata"] = ','.join(pairs)
 
-    response = requests.post(tus_endpoint, headers=headers)
+    response = requests.post(tus_endpoint, headers=h)
     if response.status_code != 201:
         raise TusError("Create failed: %s" % response)
 
@@ -143,29 +171,29 @@ def resume(file_obj,
            chunk_size=DEFAULT_CHUNK_SIZE,
            headers=None,
            offset=None):
+
     if offset is None:
-        offset = _get_offset(file_endpoint, extra_headers=headers)
+        offset = _get_offset(file_endpoint, headers=headers)
 
     total_sent = 0
     file_size = _get_file_size(file_obj)
     while offset < file_size:
         file_obj.seek(offset)
         data = file_obj.read(chunk_size)
-        offset = _upload_chunk(
-            data, offset, file_endpoint, extra_headers=headers)
+        offset = _upload_chunk(data, offset, file_endpoint, headers=headers)
         total_sent += len(data)
         logger.info("Total bytes sent: %i", total_sent)
 
 
-def _get_offset(file_endpoint, extra_headers=None):
+def _get_offset(file_endpoint, headers=None):
     logger.info("Getting offset")
 
-    headers = {"Tus-Resumable": TUS_VERSION}
+    h = {"Tus-Resumable": TUS_VERSION}
 
-    if extra_headers:
-        headers.update(extra_headers)
+    if headers:
+        h.update(headers)
 
-    response = requests.head(file_endpoint, headers=headers)
+    response = requests.head(file_endpoint, headers=h)
     response.raise_for_status()
 
     offset = int(response.headers["Upload-Offset"])
@@ -173,19 +201,19 @@ def _get_offset(file_endpoint, extra_headers=None):
     return offset
 
 
-def _upload_chunk(data, offset, file_endpoint, extra_headers=None):
-    logger.info("Uploading chunk from offset: %i", offset)
+def _upload_chunk(data, offset, file_endpoint, headers=None):
+    logger.info("Uploading %d bytes chunk from offset: %i", len(data), offset)
 
-    headers = {
+    h = {
         'Content-Type': 'application/offset+octet-stream',
         'Upload-Offset': str(offset),
         'Tus-Resumable': TUS_VERSION,
     }
 
-    if extra_headers:
-        headers.update(extra_headers)
+    if headers:
+        h.update(headers)
 
-    response = requests.patch(file_endpoint, headers=headers, data=data)
+    response = requests.patch(file_endpoint, headers=h, data=data)
     if response.status_code != 204:
         raise TusError("Upload chunk failed: %s" % response)
 
