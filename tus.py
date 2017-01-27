@@ -133,7 +133,7 @@ def upload(file_obj,
 
 def _get_file_size(f):
     pos = f.tell()
-    f.seek(0, 2)
+    f.seek(0, os.SEEK_END)
     size = f.tell()
     f.seek(pos)
     return size
