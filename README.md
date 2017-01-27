@@ -10,10 +10,10 @@ pip install -U tus.py
 This command will upload a single file to the server:
 ```shell
 tus-upload \
-        example.bin \
-        https://upload.example.com/files/ \
-        --header authorization 'token foo' \
-        --chunk-size 256000
+    example.bin \
+    https://upload.example.com/files/ \
+    --header authorization 'token foo' \
+    --chunk-size 256000
 ```
 
 After upload request is accepted on server, upload location is printed to
@@ -24,10 +24,10 @@ If upload fails at any point, program will exit with a non-zero code.
 You can continue uploading with following command:
 ```shell
 tus-resume \
-        example.bin \
-        https://upload.example.com/files/393ebd3506d3a42994c1563c1f8c5684 \
-        --header authorization 'token foo' \
-        --chunk-size 256000
+    example.bin \
+    https://upload.example.com/files/393ebd3506d3a42994c1563c1f8c5684 \
+    --header authorization 'token foo' \
+    --chunk-size 256000
 ```
 
 # Usage (Python)
