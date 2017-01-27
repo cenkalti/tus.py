@@ -126,8 +126,8 @@ def _create_file(tus_endpoint,
         headers.update(extra_headers)
 
     if metadata:
-        l = [k + ' ' + base64.b64encode(v) for k, v in metadata.items()]
-        headers["Upload-Metadata"] = ','.join(l)
+        pairs = [k + ' ' + base64.b64encode(v.encode('utf-8')).decode() for k, v in metadata.items()]
+        headers["Upload-Metadata"] = ','.join(pairs)
 
     response = requests.post(tus_endpoint, headers=headers)
     if response.status_code != 201:
