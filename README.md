@@ -17,7 +17,7 @@ tus-upload \
 ```
 
 After upload request is accepted on server, upload location is printed to
-stdout.
+`stdout`.
 
 If upload fails at any point, program will exit with a non-zero code.
 
