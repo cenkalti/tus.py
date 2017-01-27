@@ -33,6 +33,7 @@ def _create_parser():
     parser.add_argument(
         '--header',
         action='append',
+        default=[],
         help="A single key/value pair"
         " to be sent with all requests as HTTP header."
         " Can be specified multiple times to send more then one header."
@@ -49,13 +50,14 @@ def _cmd_upload():
     parser.add_argument(
         '--metadata',
         action='append',
+        default=[],
         help="A single key/value pair to be sent in Upload-Metadata header."
         " Can be specified multiple times to send more than one pair."
         " Key and value must be separated with space.")
     args = parser.parse_args()
 
-    headers = dict([x.split(':') for x in args.header])
-    metadata = dict([x.split(' ') for x in args.metadata])
+    headers = dict([map(lambda y: y.strip(), x.split(':')) for x in args.header])
+    metadata = dict([filter(None, x.split(' ')) for x in args.metadata])
 
     upload(
         args.file,
@@ -73,7 +75,7 @@ def _cmd_resume():
     parser.add_argument('file_endpoint')
     args = parser.parse_args()
 
-    headers = dict([x.split(':') for x in args.header])
+    headers = dict([map(lambda y: y.strip(), x.split(':')) for x in args.header])
 
     resume(
         args.file,
