@@ -4,7 +4,7 @@ from setuptools import setup
 setup(
     name='tus.py',
     description='tus (resumable file upload protocol) client',
-    version='1.1.0',
+    version='1.2.0',
     author=u'Cenk Altı',
     author_email='cenkalti@gmail.com',
     url='https://github.com/cenk/tus.py',
