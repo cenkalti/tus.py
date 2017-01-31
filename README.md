@@ -47,7 +47,6 @@ with open(FILE_PATH, 'rb') as f:
     	f,
         TUS_ENDPOINT,
         headers=headers,
-        metadata=metadata,
         chunk_size=CHUNK_SIZE)
 ```
 
