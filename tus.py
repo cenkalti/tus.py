@@ -16,7 +16,9 @@ logger.addHandler(logging.NullHandler())
 
 
 class TusError(Exception):
-    pass
+    def __init__(self, message, response=None):
+        super(TusError, self).__init__(message)
+        self.response = response
 
 
 def _init():
@@ -159,7 +161,8 @@ def create(tus_endpoint, file_name, file_size, headers=None, metadata=None):
 
     response = requests.post(tus_endpoint, headers=h)
     if response.status_code != 201:
-        raise TusError("Create failed: %s" % response)
+        raise TusError("Create failed: Status=%s" % response.status_code,
+                       response=response)
 
     location = response.headers["Location"]
     logger.info("Created: %s", location)
@@ -215,6 +218,7 @@ def _upload_chunk(data, offset, file_endpoint, headers=None):
 
     response = requests.patch(file_endpoint, headers=h, data=data)
     if response.status_code != 204:
-        raise TusError("Upload chunk failed: %s" % response)
+        raise TusError("Upload chunk failed: Status=%s" % response.status_code,
+                       response=response)
 
     return int(response.headers["Upload-Offset"])
