@@ -4,6 +4,11 @@ import base64
 import logging
 import argparse
 
+try:
+    from urllib.parse import urlparse, urlunparse
+except ImportError:
+    from urlparse import urlparse, urlunparse
+
 import requests
 
 LOG_LEVEL = logging.INFO
@@ -141,6 +146,18 @@ def _get_file_size(f):
     return size
 
 
+def _absolute_file_location(tus_endpoint, file_endpoint):
+    parsed_file_endpoint = urlparse(file_endpoint)
+    if parsed_file_endpoint.netloc:
+        return file_endpoint
+
+    parsed_tus_endpoint = urlparse(tus_endpoint)
+    return urlunparse((
+        parsed_tus_endpoint.scheme,
+        parsed_tus_endpoint.netloc,
+    ) + parsed_file_endpoint[2:])
+
+
 def create(tus_endpoint, file_name, file_size, headers=None, metadata=None):
     logger.info("Creating file endpoint")
 
@@ -166,7 +183,7 @@ def create(tus_endpoint, file_name, file_size, headers=None, metadata=None):
 
     location = response.headers["Location"]
     logger.info("Created: %s", location)
-    return location
+    return _absolute_file_location(tus_endpoint, location)
 
 
 def resume(file_obj,
