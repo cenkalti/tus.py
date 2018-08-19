@@ -139,6 +139,9 @@ def upload(file_obj,
 
 
 def _get_file_size(f):
+    if not f.seekable():
+        return
+
     pos = f.tell()
     f.seek(0, os.SEEK_END)
     size = f.tell()
@@ -161,10 +164,12 @@ def _absolute_file_location(tus_endpoint, file_endpoint):
 def create(tus_endpoint, file_name, file_size, headers=None, metadata=None):
     logger.info("Creating file endpoint")
 
-    h = {
-        "Tus-Resumable": TUS_VERSION,
-        "Upload-Length": str(file_size),
-    }
+    h = {"Tus-Resumable": TUS_VERSION}
+
+    if file_size is None:
+        h['Upload-Defer-Length'] = '1'
+    else:
+        h['Upload-Length'] = str(file_size)
 
     if headers:
         h.update(headers)
@@ -195,14 +200,29 @@ def resume(file_obj,
     if offset is None:
         offset = _get_offset(file_endpoint, headers=headers)
 
-    total_sent = 0
-    file_size = _get_file_size(file_obj)
-    while offset < file_size:
+    if offset != 0:
+        if not file_obj.seekable():
+            raise Exception("file is not seekable")
+
         file_obj.seek(offset)
-        data = file_obj.read(chunk_size)
-        offset = _upload_chunk(data, offset, file_endpoint, headers=headers)
+
+    total_sent = 0
+    data = file_obj.read(chunk_size)
+    while data:
+        _upload_chunk(data, offset, file_endpoint, headers=headers)
         total_sent += len(data)
         logger.info("Total bytes sent: %i", total_sent)
+        offset += len(data)
+        data = file_obj.read(chunk_size)
+
+    if not file_obj.seekable():
+        if headers is None:
+            headers = {}
+        else:
+            headers = dict(headers)
+
+        headers['Upload-Length'] = str(offset)
+        _upload_chunk('', offset, file_endpoint, headers=headers)
 
 
 def _get_offset(file_endpoint, headers=None):
@@ -237,5 +257,3 @@ def _upload_chunk(data, offset, file_endpoint, headers=None):
     if response.status_code != 204:
         raise TusError("Upload chunk failed: Status=%s" % response.status_code,
                        response=response)
-
-    return int(response.headers["Upload-Offset"])
