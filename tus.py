@@ -7,7 +7,7 @@ import argparse
 try:
     from urllib.parse import urlparse, urlunparse
 except ImportError:
-    from urlparse import urlparse, urlunparse
+    from urlparse import urlparse, urlunparse  # type: ignore
 
 import requests
 
@@ -174,12 +174,16 @@ def create(tus_endpoint, file_name, file_size, headers=None, metadata=None):
     if headers:
         h.update(headers)
 
-    if metadata:
-        pairs = [
-            k + ' ' + base64.b64encode(v.encode('utf-8')).decode()
-            for k, v in metadata.items()
-        ]
-        h["Upload-Metadata"] = ','.join(pairs)
+    if metadata is None:
+        metadata = {}
+
+    metadata['filename'] = file_name
+
+    pairs = [
+        k + ' ' + base64.b64encode(v.encode('utf-8')).decode()
+        for k, v in metadata.items()
+    ]
+    h["Upload-Metadata"] = ','.join(pairs)
 
     response = requests.post(tus_endpoint, headers=h)
     if response.status_code != 201:
