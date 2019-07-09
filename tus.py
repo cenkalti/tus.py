@@ -25,6 +25,16 @@ class TusError(Exception):
         super(TusError, self).__init__(message)
         self.response = response
 
+    def __str__(self):
+        if self.response is not None:
+            text = self.response.text
+            return "TusError('%s', response=(%s, '%s'))" % (
+                    self.message,
+                    self.response.status_code,
+                    text.strip())
+        else:
+            return "TusError('%s')" % self.message
+
 
 def _init():
     fmt = "[%(asctime)s] %(levelname)s %(message)s"
@@ -187,8 +197,7 @@ def create(tus_endpoint, file_name, file_size, headers=None, metadata=None):
 
     response = requests.post(tus_endpoint, headers=h)
     if response.status_code != 201:
-        raise TusError("Create failed: Status=%s" % response.status_code,
-                       response=response)
+        raise TusError("Create failed", response=response)
 
     location = response.headers["Location"]
     logger.info("Created: %s", location)
@@ -259,5 +268,4 @@ def _upload_chunk(data, offset, file_endpoint, headers=None):
 
     response = requests.patch(file_endpoint, headers=h, data=data)
     if response.status_code != 204:
-        raise TusError("Upload chunk failed: Status=%s" % response.status_code,
-                       response=response)
+        raise TusError("Upload chunk failed", response=response)
