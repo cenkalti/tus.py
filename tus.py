@@ -129,7 +129,8 @@ def upload(file_obj,
            chunk_size=DEFAULT_CHUNK_SIZE,
            file_name=None,
            headers=None,
-           metadata=None):
+           metadata=None,
+           timeout=None):
 
     file_name = file_name or os.path.basename(file_obj.name)
     file_size = _get_file_size(file_obj)
@@ -139,14 +140,16 @@ def upload(file_obj,
         file_name,
         file_size,
         headers=headers,
-        metadata=metadata)
+        metadata=metadata,
+        timeout=timeout)
 
     resume(
         file_obj,
         file_endpoint,
         chunk_size=chunk_size,
         headers=headers,
-        offset=0)
+        offset=0,
+        timeout=timeout)
 
 
 def _get_file_size(f):
@@ -179,7 +182,8 @@ def _absolute_file_location(tus_endpoint, file_endpoint):
     ) + parsed_file_endpoint[2:])
 
 
-def create(tus_endpoint, file_name, file_size, headers=None, metadata=None):
+def create(tus_endpoint, file_name, file_size, headers=None, metadata=None,
+           timeout=None):
     logger.info("Creating file endpoint")
 
     h = {"Tus-Resumable": TUS_VERSION}
@@ -203,7 +207,7 @@ def create(tus_endpoint, file_name, file_size, headers=None, metadata=None):
     ]
     h["Upload-Metadata"] = ','.join(pairs)
 
-    response = requests.post(tus_endpoint, headers=h)
+    response = requests.post(tus_endpoint, headers=h, timeout=timeout)
     if response.status_code != 201:
         raise TusError("Create failed", response=response)
 
@@ -216,10 +220,11 @@ def resume(file_obj,
            file_endpoint,
            chunk_size=DEFAULT_CHUNK_SIZE,
            headers=None,
-           offset=None):
+           offset=None,
+           timeout=None):
 
     if offset is None:
-        offset = _get_offset(file_endpoint, headers=headers)
+        offset = _get_offset(file_endpoint, headers=headers, timeout=timeout)
 
     if offset != 0:
         if not _is_seekable(file_obj):
@@ -230,7 +235,8 @@ def resume(file_obj,
     total_sent = 0
     data = file_obj.read(chunk_size)
     while data:
-        _upload_chunk(data, offset, file_endpoint, headers=headers)
+        _upload_chunk(data, offset, file_endpoint, headers=headers,
+                      timeout=timeout)
         total_sent += len(data)
         logger.info("Total bytes sent: %i", total_sent)
         offset += len(data)
@@ -243,10 +249,11 @@ def resume(file_obj,
             headers = dict(headers)
 
         headers['Upload-Length'] = str(offset)
-        _upload_chunk('', offset, file_endpoint, headers=headers)
+        _upload_chunk('', offset, file_endpoint, headers=headers,
+                      timeout=timeout)
 
 
-def _get_offset(file_endpoint, headers=None):
+def _get_offset(file_endpoint, headers=None, timeout=None):
     logger.info("Getting offset")
 
     h = {"Tus-Resumable": TUS_VERSION}
@@ -254,7 +261,7 @@ def _get_offset(file_endpoint, headers=None):
     if headers:
         h.update(headers)
 
-    response = requests.head(file_endpoint, headers=h)
+    response = requests.head(file_endpoint, headers=h, timeout=timeout)
     response.raise_for_status()
 
     offset = int(response.headers["Upload-Offset"])
@@ -262,7 +269,7 @@ def _get_offset(file_endpoint, headers=None):
     return offset
 
 
-def _upload_chunk(data, offset, file_endpoint, headers=None):
+def _upload_chunk(data, offset, file_endpoint, headers=None, timeout=None):
     logger.info("Uploading %d bytes chunk from offset: %i", len(data), offset)
 
     h = {
@@ -274,6 +281,7 @@ def _upload_chunk(data, offset, file_endpoint, headers=None):
     if headers:
         h.update(headers)
 
-    response = requests.patch(file_endpoint, headers=h, data=data)
+    response = requests.patch(file_endpoint, headers=h, data=data,
+                              timeout=timeout)
     if response.status_code != 204:
         raise TusError("Upload chunk failed", response=response)
