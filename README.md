@@ -46,7 +46,7 @@ with open(FILE_PATH, 'rb') as f:
     tus.upload(
     	f,
         TUS_ENDPOINT,
-        headers=headers,
+        headers=HEADERS,
         chunk_size=CHUNK_SIZE)
 ```
 
