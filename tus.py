@@ -70,6 +70,10 @@ def _create_parent_parser():
         help="A single key/value pair as 2 arguments"
         " to be sent as HTTP header."
         " Can be specified multiple times to send multiple headers.")
+    parser.add_argument(
+        '--timeout',
+        type=float,
+        help="Timeout in seconds for each HTTP request.")
     return parser
 
 
@@ -98,7 +102,8 @@ def _cmd_upload():
         file_name,
         file_size,
         headers=args.headers,
-        metadata=args.metadata)
+        metadata=args.metadata,
+        timeout=args.timeout)
 
     print(file_endpoint)
 
@@ -107,7 +112,8 @@ def _cmd_upload():
         file_endpoint,
         chunk_size=args.chunk_size,
         headers=args.headers,
-        offset=0)
+        offset=0,
+        timeout=args.timeout)
 
 
 def _cmd_resume():
@@ -121,7 +127,8 @@ def _cmd_resume():
         args.file,
         args.file_endpoint,
         chunk_size=args.chunk_size,
-        headers=args.headers)
+        headers=args.headers,
+        timeout=args.timeout)
 
 
 def upload(file_obj,
