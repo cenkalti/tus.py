@@ -44,7 +44,7 @@ CHUNK_SIZE = 256000
 
 with open(FILE_PATH, 'rb') as f:
     tus.upload(
-    	f,
+        f,
         TUS_ENDPOINT,
         headers=HEADERS,
         chunk_size=CHUNK_SIZE)
